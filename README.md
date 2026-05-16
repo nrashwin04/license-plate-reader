@@ -1,82 +1,129 @@
-# 🚗 License Plate Reader
+# 🚗 License Plate Reader (ANPR Pipeline)
 
-> 🚧 Work in progress — coming soon.
+![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
+![OpenCV](https://img.shields.io/badge/OpenCV-4.x-green.svg)
+![EasyOCR](https://img.shields.io/badge/EasyOCR-Ready-orange.svg)
+![Streamlit](https://img.shields.io/badge/Streamlit-UI-red.svg)
 
-Automatic license plate detection and text extraction from vehicle images.
-Upload any photo of a vehicle and the app detects the plate, crops it, and reads the text using OCR.
-
-> Built as part of my MSc CS portfolio to explore computer vision pipelines and real-world OCR applications.
-
----
-
-## What it does
-
-1. **Upload** a vehicle image
-2. **Detect** the license plate region using OpenCV
-3. **Crop** and preprocess the plate for better OCR accuracy
-4. **Read** the plate text using EasyOCR
-5. **Display** the original image, cropped plate, and extracted text
+An end-to-end Automated Number Plate Recognition (ANPR) pipeline built as part of an MSc Computer Science portfolio. This project demonstrates a modular approach to computer vision — separating detection, preprocessing, character recognition, and domain-specific post-processing into distinct, scalable layers.
 
 ---
 
-## Planned features
+## ✨ Features
 
-- 📸 Upload any vehicle image (jpg, png)
-- 🔍 Automatic plate region detection
-- ✂️ Plate cropping and preprocessing
-- 🔤 OCR text extraction with confidence score
-- 🇮🇳 Support for Indian number plates
-- 📦 Multiple plates in a single image
-- 🌐 Streamlit web interface
+- **Modular Architecture** — built with separation of concerns in mind, allowing the detection or OCR engine to be swapped without touching the rest of the pipeline
+- **Robust Image Preprocessing** — OpenCV contrast normalisation, median blurring, and cubic upscaling to recover details from compressed or noisy camera feeds
+- **Domain-Specific Post-Processing** — custom parser tailored for Indian High-Security Registration Plates (HSRP), enforcing the strict `[2 Letters][2 Numbers][1-2 Letters][4 Numbers]` format
+- **Intelligent Error Correction** — automatically corrects common OCR hallucinations (e.g. `0` → `O`, `5` → `S`) and snaps misread state codes back to valid RTO formats
+- **Interactive UI** — persistent Streamlit interface that visualises every step of the CV pipeline for easy debugging and demonstration
 
 ---
 
-## Planned tech stack
+## 🧠 Architecture
 
-| Layer | Tech |
+The application is broken into four core modules:
+
+| Module | Responsibility |
 |---|---|
-| UI | Streamlit |
-| Plate detection | OpenCV / YOLOv8 |
-| OCR | EasyOCR |
-| Image processing | OpenCV, PIL |
-| Deep learning | PyTorch |
+| `app.py` | Orchestration, session state, Streamlit UI |
+| `detector.py` | Plate localisation using OpenCV contour detection and aspect-ratio validation |
+| `utils.py` | Image preprocessing — upscaling, blurring, contrast normalisation |
+| `ocr.py` | EasyOCR inference, post-processing, and Indian plate format correction |
 
----
-
-## How it will work
+### Pipeline flow
 
 ```
-Vehicle image → OpenCV contour detection → plate region crop
-    → greyscale + thresholding → EasyOCR → extracted text + confidence
+Vehicle image → contour detection → plate crop
+    → 2x cubic upscale → median blur → contrast normalisation
+    → EasyOCR inference → format correction → result
 ```
 
 ---
 
-## Planned project structure
+## 🔍 Engineering Decisions & Honest Constraints
+
+### What works well
+
+The preprocessing pipeline performs reliably. Cropped plate images are upscaled, denoised, and contrast-normalised before OCR — producing clean, legible input even from compressed camera feeds.
+
+Domain-specific post-processing squeezes additional accuracy out of the lightweight model by enforcing the known Indian plate format and correcting character-level mistakes based on positional rules.
+
+### Known limitation — EasyOCR and the HSRP font
+
+Despite clean preprocessed input, EasyOCR occasionally misreads characters on Indian High-Security Registration Plates. For example:
+
+- `MH04KW7706` read as `MH01KL2206`
+- `MH20DV2366` read as `MHHZODV2366` — a metal rivet on the plate was interpreted as the letter `H`
+
+This is a fundamental constraint of EasyOCR — a lightweight, generalised model optimised for CPU speed that has not been specifically trained on the HSRP font, which features open-top `4`s, squarish `0`s, and metallic rivets that confuse the neural network even on perfectly clean input.
+
+### Why the modular architecture matters
+
+Because each stage is isolated, upgrading to an enterprise-grade OCR engine requires fewer than 10 lines of change in `ocr.py` — the detection, preprocessing, and post-processing logic remain fully intact:
+
+```python
+# Current — lightweight, runs on CPU
+reader = easyocr.Reader(['en'])
+
+# Drop-in upgrades:
+# → PaddleOCR       (open source, higher HSRP accuracy)
+# → Google Cloud Vision API  (99%+ accuracy)
+# → AWS Textract
+```
+
+---
+
+## 🚀 Installation & Usage
+
+### 1. Clone the repository
+```bash
+git clone https://github.com/yourusername/license-plate-reader.git
+cd license-plate-reader
+```
+
+### 2. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Run the app
+```bash
+streamlit run app.py
+```
+
+### 4. Use it
+- Upload a vehicle image (jpg, png)
+- Adjust the confidence threshold slider as needed
+- Check "Show preprocessing steps" to see the full CV pipeline breakdown
+- View the extracted plate text and raw OCR results
+
+---
+
+## 📁 Project structure
 
 ```
 license-plate-reader/
-├── app.py                  # Streamlit UI
-├── detector.py             # plate detection logic
-├── ocr.py                  # EasyOCR wrapper
-├── utils.py                # image preprocessing helpers
+├── app.py              # Streamlit UI and orchestration
+├── detector.py         # OpenCV plate localisation
+├── ocr.py              # EasyOCR inference and post-processing
+├── utils.py            # Image preprocessing helpers
 ├── requirements.txt
-├── .gitignore
 └── README.md
 ```
 
 ---
 
-## Roadmap
+## 🗺️ Roadmap
 
-- [ ] OpenCV contour-based plate detection
-- [ ] EasyOCR integration
-- [ ] Streamlit UI with image upload
-- [ ] YOLOv8 upgrade for better detection
-- [ ] Indian number plate support
-- [ ] Multi-plate detection
+- [x] OpenCV contour-based plate detection
+- [x] EasyOCR integration with allowlist
+- [x] Indian HSRP post-processing and error correction
+- [x] Streamlit UI with preprocessing visualisation
+- [ ] PaddleOCR upgrade for improved HSRP font accuracy
+- [ ] YOLOv8-based detection for angled or distant plates
+- [ ] Multi-plate detection in a single image
 - [ ] Deploy to Streamlit Community Cloud
 
 ---
 
-*Planned with OpenCV + EasyOCR · MSc CS portfolio project*
+*Built with OpenCV + EasyOCR · MSc CS portfolio project*
